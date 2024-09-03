@@ -16,6 +16,7 @@ export class AuthService {
   private User = this.databaseService.user;
 
   async signup(userSignupDto: Prisma.UserCreateInput) {
+    console.log('is controller called', userSignupDto);
     const isUser = await this.User.findUnique({
       where: {
         email: userSignupDto.email,

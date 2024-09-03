@@ -26,6 +26,7 @@ import { User } from 'src/common/decorators/user.decorator';
 import { Role } from 'src/common/enums';
 import { BuyerRoleInterceptor } from 'src/common/interceptors/buyerRole.interceptor';
 import { BuyProductDto } from './dto/buy-product.dto';
+import { CreateProductDto } from './dto/create-product.dto';
 
 @Controller('products')
 @UseGuards(JwtAuthGuard)
@@ -35,7 +36,7 @@ export class ProductsController {
   @Post()
   @UseInterceptors(SellerRoleInterceptor)
   async create(
-    @Body() createProductDto: Prisma.ProductCreateInput,
+    @Body() createProductDto: CreateProductDto,
     @Res() res: Response,
   ) {
     const product = await this.productsService.create(createProductDto);

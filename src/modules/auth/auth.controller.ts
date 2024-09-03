@@ -14,6 +14,7 @@ export class AuthController {
     @Body() userSignupDto: Prisma.UserCreateInput,
     @Res() res: Response,
   ) {
+    console.log('error here');
     const user = await this.authService.signup(userSignupDto);
     createResponse(res, HttpStatus.OK, 'User created successfully', user);
   }

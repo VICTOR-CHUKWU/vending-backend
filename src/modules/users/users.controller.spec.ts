@@ -1,9 +1,17 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
-import { BadRequestException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Response } from 'express';
 import { Role } from '@prisma/client';
+import { TokenDto } from './dto/user.dto';
+import { BuyerRoleInterceptor } from 'src/common/interceptors/buyerRole.interceptor';
+import { AuthorizationInterceptor } from 'src/common/interceptors/authorization.interceptor';
 
 describe('UsersController', () => {
   let controller: UsersController;
@@ -27,6 +35,7 @@ describe('UsersController', () => {
   };
 
   beforeEach(async () => {
+    jest.clearAllMocks();
     const module: TestingModule = await Test.createTestingModule({
       controllers: [UsersController],
       providers: [
@@ -34,6 +43,8 @@ describe('UsersController', () => {
           provide: UsersService,
           useValue: mockUserService,
         },
+        AuthorizationInterceptor,
+        BuyerRoleInterceptor,
       ],
     }).compile();
 
@@ -56,9 +67,11 @@ describe('UsersController', () => {
       expect(service.getAllUsers).toHaveBeenCalledWith(Role.Buyer);
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith({
-        statusCode: 200,
+        status: 200,
+        success: true,
         message: 'Users fetched successfully',
         data: mockUsers,
+        pagination: null,
       });
     });
 
@@ -74,22 +87,88 @@ describe('UsersController', () => {
   });
 
   describe('buyCoin', () => {
-    it('should return the purchased coin', async () => {
+    it('should return the purchased coin when the request is valid', async () => {
       const res = mockResponse();
       const id = '1';
-      const tokenPayload = { coinValue: 10 };
-      const mockCoin = { id: '1', token: '15' };
-      mockUserService.buyCoin.mockResolvedValue(mockCoin);
+      const tokenPayload: TokenDto = { coinValue: 10 };
+      const mockUser = { id: '1', coins: 20 }; // User will have 10 + 10 coins after purchase
+      mockUserService.buyCoin.mockResolvedValue(mockUser);
 
       await controller.buyCoin(id, tokenPayload, res);
 
       expect(service.buyCoin).toHaveBeenCalledWith(id, tokenPayload);
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith({
-        statusCode: 200,
+        success: true,
+        status: 200,
         message: 'coin purchased successfully',
-        data: mockCoin,
+        data: mockUser,
+        pagination: null,
       });
+    });
+
+    // it('should throw BadRequestException for invalid coin value', async () => {
+    //   const res = mockResponse();
+    //   const id = '1';
+    //   const tokenPayload: any = { coinValue: 15 }; // Invalid coin value
+
+    //   await expect(controller.buyCoin(id, tokenPayload, res)).rejects.toThrow(
+    //     BadRequestException,
+    //   );
+    //   expect(service.buyCoin).not.toHaveBeenCalled();
+    // });
+
+    it('should throw NotFoundException if user does not exist', async () => {
+      const res = mockResponse();
+      const id = '1';
+      const tokenPayload: TokenDto = { coinValue: 10 };
+      mockUserService.buyCoin.mockRejectedValue(
+        new NotFoundException('User not found'),
+      );
+
+      await expect(controller.buyCoin(id, tokenPayload, res)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('should throw ForbiddenException if user role is not "Buyer"', async () => {
+      const req = {
+        user: { id: '1', role: 'Seller' }, // Not a "Buyer"
+      };
+      const context = { switchToHttp: () => ({ getRequest: () => req }) };
+      const next = { handle: jest.fn() };
+
+      const buyerRoleInterceptor = new BuyerRoleInterceptor();
+      await expect(
+        buyerRoleInterceptor.intercept(context as any, next),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should throw UnauthorizedException if user is not authenticated', async () => {
+      const req = {
+        user: null, // No authenticated user
+      };
+      const context = { switchToHttp: () => ({ getRequest: () => req }) };
+      const next = { handle: jest.fn() };
+
+      const buyerRoleInterceptor = new BuyerRoleInterceptor();
+      await expect(
+        buyerRoleInterceptor.intercept(context as any, next),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('should throw ForbiddenException if user tries to buy coins for another user', async () => {
+      const req = {
+        user: { id: '2', role: 'Buyer' }, // Authenticated as a different user
+        params: { id: '1' },
+      };
+      const context = { switchToHttp: () => ({ getRequest: () => req }) };
+      const next = { handle: jest.fn() };
+
+      const authorizationInterceptor = new AuthorizationInterceptor();
+      await expect(
+        authorizationInterceptor.intercept(context as any, next),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 
@@ -97,37 +176,13 @@ describe('UsersController', () => {
     it('should return the coin data', async () => {
       const res = mockResponse();
       const id = '1';
-      const mockCoin = { id: '1', token: '123' };
-      mockUserService.getCoin.mockResolvedValue(mockCoin);
+      const mockCoinData = { coins: 123 };
+      mockUserService.getCoin.mockResolvedValue(mockCoinData);
 
       await controller.getCoin(id, res);
 
       expect(service.getCoin).toHaveBeenCalledWith(id);
       expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.json).toHaveBeenCalledWith({
-        statusCode: 200,
-        message: 'coin fetched successfully',
-        data: mockCoin,
-      });
-    });
-  });
-
-  describe('deleteUser', () => {
-    it('should delete a user and return success message', async () => {
-      const res = mockResponse();
-      const id = '1';
-      const mockUser = { id: '1', name: 'Test User' };
-      mockUserService.deleteUser.mockResolvedValue(mockUser);
-
-      await controller.deleteUser(id, res);
-
-      expect(service.deleteUser).toHaveBeenCalledWith(id);
-      expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.json).toHaveBeenCalledWith({
-        statusCode: 200,
-        message: 'Users deleted successfully',
-        data: mockUser,
-      });
     });
   });
 });

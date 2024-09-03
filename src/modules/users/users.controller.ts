@@ -33,7 +33,7 @@ export class UsersController {
   @Get()
   async getAllUsers(@Res() res: Response, @Query('role') role?: string) {
     let roleEnum: Role | undefined;
-
+    console.log('Checking role:', role);
     if (role) {
       if (Object.values(Role).includes(role as Role)) {
         roleEnum = role as Role;
@@ -41,6 +41,8 @@ export class UsersController {
         throw new BadRequestException('Invalid role in params');
       }
     }
+    console.log('Role is valid, fetching users');
+
     const users = await this.userService.getAllUsers(roleEnum);
     createResponse(res, HttpStatus.OK, 'Users fetched successfully', users);
   }
@@ -53,12 +55,12 @@ export class UsersController {
     @Body() tokenPayload: TokenDto,
     @Res() res: Response,
   ) {
-    const coin = await this.userService.buyCoin(id, tokenPayload);
+    const user = await this.userService.buyCoin(id, tokenPayload);
     return createResponse(
       res,
       HttpStatus.OK,
       'coin purchased successfully',
-      coin,
+      user,
     );
   }
 

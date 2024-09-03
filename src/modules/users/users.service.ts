@@ -69,7 +69,7 @@ export class UsersService {
       },
     });
 
-    return { coins: updatedUser.coins };
+    return updatedUser;
   }
 
   async getCoin(id: string) {

@@ -10,6 +10,7 @@ import { Role } from 'src/common/enums';
 
 import { DatabaseService } from 'src/database/database.service';
 import { BuyProductDto } from './dto/buy-product.dto';
+import { CreateProductDto } from './dto/create-product.dto';
 
 @Injectable()
 export class ProductsService {
@@ -19,7 +20,7 @@ export class ProductsService {
   private User = this.databaseService.user;
   private Purchase = this.databaseService.purchase;
 
-  async create(createProductDto: Prisma.ProductCreateInput) {
+  async create(createProductDto: CreateProductDto) {
     const product = await this.Product.create({ data: createProductDto });
     return product;
   }
@@ -75,7 +76,7 @@ export class ProductsService {
       include: {
         productPurchases: {
           include: {
-            product: true, // Include the product details in each ProductPurchase
+            product: true,
           },
         },
       },
@@ -258,13 +259,12 @@ export class ProductsService {
       include: {
         productPurchases: {
           include: {
-            product: true, // Include the product details in the response
+            product: true,
           },
         },
       },
     });
 
-    // Update product stock
     for (const pp of productPurchases) {
       await this.Product.update({
         where: { id: pp.productId },
