@@ -19,6 +19,7 @@ export class ProductsService {
   private Product = this.databaseService.product;
   private User = this.databaseService.user;
   private Purchase = this.databaseService.purchase;
+  private ProductPurchase = this.databaseService.productPurchase;
 
   async create(createProductDto: CreateProductDto) {
     const product = await this.Product.create({ data: createProductDto });
@@ -201,6 +202,13 @@ export class ProductsService {
     if (!isProduct) {
       throw new BadRequestException('Product not found');
     }
+    await this.ProductPurchase.deleteMany({
+      where: {
+        productId: id,
+      },
+    });
+
+    // Now delete the product
     await this.Product.delete({
       where: {
         id,
